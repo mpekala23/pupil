@@ -3,6 +3,8 @@ pub mod consts;
 use bevy::{prelude::*, utils::HashMap};
 use consts::*;
 
+use crate::physics::{Hitbox, Moveable, Velocity};
+
 #[derive(Component)]
 pub struct Agent;
 
@@ -14,52 +16,55 @@ pub struct Observation {
 #[derive(Component)]
 pub struct Brain {}
 
-#[derive(Component)]
-pub struct Velocity {
-    x: f32,
-    y: f32,
-}
-
 #[derive(Bundle)]
 pub struct AgentBundle {
-    sprite: SpriteBundle,
-    velocity: Velocity,
-    input: Observation,
     _agent: Agent,
+    sprite: SpriteBundle,
+    observation: Observation,
+    hitbox: Hitbox,
+    velocity: Velocity,
+    _movable: Moveable,
 }
 impl AgentBundle {
-    fn new(pos: Vec2) -> AgentBundle {
+    fn new(pos: Vec2, size: Vec2) -> AgentBundle {
         AgentBundle {
+            _agent: Agent,
             sprite: SpriteBundle {
                 sprite: Sprite {
-                    color: Color::rgb(0.0, 1.0, 0.3),
+                    color: Color::rgb(0.5, 1.0, 0.3),
                     ..default()
                 },
                 transform: Transform {
-                    translation: pos.extend(0.0),
-                    scale: Vec3::new(60.0, 60.0, 1.0),
+                    scale: size.extend(1.0),
                     ..default()
                 },
                 ..default()
             },
-            velocity: Velocity { x: 0.0, y: 0.0 },
-            input: Observation {
+            observation: Observation {
                 senses: HashMap::new(),
             },
-            _agent: Agent,
+            hitbox: Hitbox {
+                pos: Vec2 { x: 0.0, y: 0.0 },
+                size,
+            },
+            velocity: Velocity { x: 0.0, y: 0.0 },
+            _movable: Moveable,
         }
     }
 }
 
 pub fn agent_setup(mut commands: Commands) {
-    commands.spawn(AgentBundle::new(Vec2 { x: 0.0, y: 50.0 }));
+    commands.spawn(AgentBundle::new(
+        Vec2 { x: 0.0, y: 0.0 },
+        Vec2 { x: 60.0, y: 60.0 },
+    ));
 }
 
 pub fn agent_update(mut query: Query<&mut Transform, With<Agent>>) {
     if query.is_empty() {
         return;
     }
-    let mut agent = query.single_mut();
+    let mut _agent = query.single_mut();
 }
 
 pub fn agent_move(

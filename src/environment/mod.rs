@@ -3,11 +3,10 @@ pub mod consts;
 
 use bevy::prelude::*;
 
-use self::block::spawn_block;
+use self::block::Block;
 
 pub fn environment_setup(commands: Commands) {
-    println!("here");
-    spawn_block(
+    Block::spawn(
         commands,
         Vec2 { x: 0.0, y: -200.0 },
         Vec2 {
