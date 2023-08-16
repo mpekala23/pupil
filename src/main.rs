@@ -1,6 +1,13 @@
 pub mod agent;
-use agent::register_player_systems;
+pub mod environment;
+pub mod meta;
+pub mod physics;
+
+use agent::register_agent;
 use bevy::prelude::*;
+use environment::register_environment;
+use meta::register_meta;
+use physics::register_physics;
 
 pub fn test() {}
 
@@ -32,7 +39,7 @@ impl BlockBundle {
     }
 }
 
-pub fn setup(
+pub fn main_setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -46,10 +53,13 @@ pub fn setup(
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins)
-        .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
+        .insert_resource(ClearColor(Color::rgb(1.0, 1.0, 1.0)))
         .insert_resource(FixedTime::new_from_secs(1.0 / 60.0))
-        .add_systems(Startup, setup)
+        .add_systems(Startup, main_setup)
         .add_systems(FixedUpdate, test);
-    register_player_systems(&mut app);
+    register_agent(&mut app);
+    register_environment(&mut app);
+    register_meta(&mut app);
+    register_physics(&mut app);
     app.run();
 }
