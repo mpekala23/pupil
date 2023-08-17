@@ -4,6 +4,8 @@ use std::cmp::min;
 
 use bevy::prelude::*;
 
+use crate::physics::consts::COLLISION_THRESHOLD;
+
 use self::consts::GRAVITY;
 
 /// A simple hitbox
@@ -42,15 +44,12 @@ pub fn physics_move(
     for (velocity, mut transform) in query.iter_mut() {
         transform.translation.x += velocity.x * time.delta_seconds();
         transform.translation.y += velocity.y * time.delta_seconds();
-        if transform.translation.y < -100.0 {
-            transform.translation.y = -100.0;
-        }
     }
 }
 
 pub fn get_bounds(hitbox: &Hitbox, transform: &Transform) -> (f32, f32, f32, f32) {
     let left = transform.translation.x + hitbox.pos.x - hitbox.size.x / 2.0;
-    let right = left + hitbox.size.x / 2.0;
+    let right = left + hitbox.size.x;
     let top = transform.translation.y + hitbox.pos.y + hitbox.size.y / 2.0;
     let bot = top - hitbox.size.y;
     (left, right, top, bot)
@@ -64,10 +63,10 @@ pub fn are_colliding(h1: &Hitbox, t1: &Transform, h2: &Hitbox, t2: &Transform) -
 
     let left2 = t2.translation.x + h2.pos.x - h2.size.x / 2.0;
     let right2 = left2 + h2.size.x;
-    let top2 = t1.translation.y + h2.pos.y + h2.size.y / 2.0;
+    let top2 = t2.translation.y + h2.pos.y + h2.size.y / 2.0;
     let bot2 = top2 - h2.size.y;
 
-    return !(bot1 > top2 || top1 < bot2 || right1 < left2 || left1 > right2);
+    return !(bot1 >= top2 || top1 <= bot2 || right1 <= left2 || left1 >= right2);
 }
 
 pub fn resolve_move_immove_collision(
@@ -101,16 +100,22 @@ pub fn resolve_move_immove_collision(
     // Resolve appropriately
     if left_resolve <= min_resolve {
         t1.translation.x -= left_resolve;
-        v1.x *= -1.0;
+        v1.x *= -1.0 * 0.4;
     } else if right_resolve <= min_resolve {
         t1.translation.x += right_resolve;
-        v1.x *= -1.0;
+        v1.x *= -1.0 * 0.4;
     } else if top_resolve <= min_resolve {
         t1.translation.y += top_resolve;
-        v1.y *= -1.0;
+        v1.y *= -1.0 * 0.4;
     } else {
-        t1.translation.y += bot_resolve;
-        v1.y *= -1.0;
+        t1.translation.y -= bot_resolve;
+        v1.y *= -1.0 * 0.4;
+    }
+    if v1.x.abs() < COLLISION_THRESHOLD {
+        v1.x = 0.0;
+    }
+    if v1.y.abs() < COLLISION_THRESHOLD {
+        v1.y = 0.0;
     }
 }
 
@@ -126,8 +131,8 @@ pub fn physics_collide(
             if !are_colliding(h1, &t1, h2, t2) {
                 continue;
             }
-            println!("Would resolve collision {:?}, {:?}", t1, t2);
-            // resolve_move_immove_collision(h1, &mut t1, &mut v1, h2, t2);
+            // println!("Would resolve collision {:?}, {:?}", t1, t2);
+            resolve_move_immove_collision(h1, &mut t1, &mut v1, h2, t2);
         }
     }
 }

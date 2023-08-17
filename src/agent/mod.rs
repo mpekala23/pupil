@@ -34,7 +34,7 @@ impl AgentBundle {
             _movable: Moveable,
             spatial: SpatialBundle {
                 transform: Transform {
-                    //translation: pos.extend(0.0),
+                    translation: pos.extend(0.0),
                     scale: size.extend(1.0),
                     ..default()
                 },
@@ -59,7 +59,7 @@ impl AgentBundle {
 
 pub fn agent_setup(mut commands: Commands) {
     commands.spawn(AgentBundle::new(
-        Vec2 { x: 0.0, y: 0.0 },
+        Vec2 { x: 0.0, y: 100.0 },
         Vec2 { x: 60.0, y: 60.0 },
     ));
 }
