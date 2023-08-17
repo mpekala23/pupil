@@ -1,9 +1,9 @@
 pub mod consts;
 
-use bevy::{prelude::*, utils::HashMap};
+use bevy::{prelude::*, render::texture::DEFAULT_IMAGE_HANDLE, utils::HashMap};
 use consts::*;
 
-use crate::physics::{Hitbox, Moveable, Velocity};
+use crate::physics::{consts::GRAVITY, Hitbox, Moveable, Velocity};
 
 #[derive(Component)]
 pub struct Agent;
@@ -19,27 +19,32 @@ pub struct Brain {}
 #[derive(Bundle)]
 pub struct AgentBundle {
     _agent: Agent,
-    sprite: SpriteBundle,
+    _movable: Moveable,
+    spatial: SpatialBundle,
+    sprite: Sprite,
+    texture: Handle<Image>,
     observation: Observation,
     hitbox: Hitbox,
     velocity: Velocity,
-    _movable: Moveable,
 }
 impl AgentBundle {
     fn new(pos: Vec2, size: Vec2) -> AgentBundle {
         AgentBundle {
             _agent: Agent,
-            sprite: SpriteBundle {
-                sprite: Sprite {
-                    color: Color::rgb(0.5, 1.0, 0.3),
-                    ..default()
-                },
+            _movable: Moveable,
+            spatial: SpatialBundle {
                 transform: Transform {
+                    //translation: pos.extend(0.0),
                     scale: size.extend(1.0),
                     ..default()
                 },
                 ..default()
             },
+            sprite: Sprite {
+                color: Color::rgb(0.5, 1.0, 0.3),
+                ..default()
+            },
+            texture: DEFAULT_IMAGE_HANDLE.typed(),
             observation: Observation {
                 senses: HashMap::new(),
             },
@@ -48,7 +53,6 @@ impl AgentBundle {
                 size,
             },
             velocity: Velocity { x: 0.0, y: 0.0 },
-            _movable: Moveable,
         }
     }
 }
@@ -67,19 +71,22 @@ pub fn agent_update(mut query: Query<&mut Transform, With<Agent>>) {
     let mut _agent = query.single_mut();
 }
 
-pub fn agent_move(
-    mut query: Query<&mut Transform, With<Agent>>,
-    time: Res<Time>,
-    input: Res<Input<KeyCode>>,
-) {
+pub fn agent_move(mut query: Query<&mut Velocity, With<Agent>>, input: Res<Input<KeyCode>>) {
     if query.is_empty() {
         return;
     };
-    let mut agent = query.single_mut();
+    let mut velocity = query.single_mut();
+    // Horizontal motion
     if input.any_pressed([KeyCode::A, KeyCode::Left]) {
-        agent.translation.x -= MOVE_SPEED * time.delta_seconds();
+        velocity.x = -MOVE_SPEED;
     } else if input.any_pressed([KeyCode::D, KeyCode::Right]) {
-        agent.translation.x += MOVE_SPEED * time.delta_seconds();
+        velocity.x = MOVE_SPEED;
+    } else {
+        velocity.x = 0.0;
+    }
+    // Vertical motion
+    if input.just_pressed(KeyCode::W) {
+        velocity.y = GRAVITY / 2.0;
     }
 }
 

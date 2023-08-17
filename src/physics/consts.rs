@@ -1,1 +1,1 @@
-pub const GRAVITY: f32 = 98.0;
+pub const GRAVITY: f32 = 980.0;

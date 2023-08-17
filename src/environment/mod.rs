@@ -3,17 +3,16 @@ pub mod consts;
 
 use bevy::prelude::*;
 
-use self::block::Block;
+use self::block::BlockBundle;
 
-pub fn environment_setup(commands: Commands) {
-    Block::spawn(
-        commands,
-        Vec2 { x: 0.0, y: -200.0 },
+pub fn environment_setup(mut commands: Commands) {
+    commands.spawn(BlockBundle::new(
+        Vec2 { x: 0.0, y: -50.0 },
         Vec2 {
             x: 1000.0,
             y: 100.0,
         },
-    )
+    ));
 }
 
 pub fn register_environment(app: &mut App) {
