@@ -2,7 +2,7 @@ use crate::physics::{
     are_colliding,
     collisions::{distance_point_to_segment, Triangle},
     consts::GRAVITY,
-    physics_move, Hitbox, Moveable, Velocity,
+    physics_move, rotate, Hitbox, Moveable, Velocity,
 };
 use bevy::{prelude::*, render::texture::DEFAULT_IMAGE_HANDLE, sprite::Anchor, utils::HashMap};
 
@@ -22,34 +22,50 @@ pub struct SeeBox {
 impl SeeBox {
     pub fn two_triangles(&self, t: &Transform) -> (Triangle, Triangle) {
         let trans = t.translation;
-        (
+        let trans = Vec2 {
+            x: trans.x,
+            y: trans.y,
+        };
+        let pre_rotation = (
             Triangle {
                 a: Vec2 {
-                    x: trans.x + self.size.x,
-                    y: trans.y + self.size.y / 2.0,
+                    x: self.size.x,
+                    y: self.size.y / 2.0,
                 },
                 b: Vec2 {
-                    x: trans.x,
-                    y: trans.y + self.size.y / 2.0,
+                    x: 0.0,
+                    y: self.size.y / 2.0,
                 },
                 c: Vec2 {
-                    x: trans.x,
-                    y: trans.y - self.size.y / 2.0,
+                    x: 0.0,
+                    y: -self.size.y / 2.0,
                 },
             },
             Triangle {
                 a: Vec2 {
-                    x: trans.x + self.size.x,
-                    y: trans.y + self.size.y / 2.0,
+                    x: self.size.x,
+                    y: self.size.y / 2.0,
                 },
                 b: Vec2 {
-                    x: trans.x,
-                    y: trans.y - self.size.y / 2.0,
+                    x: 0.0,
+                    y: -self.size.y / 2.0,
                 },
                 c: Vec2 {
-                    x: trans.x + self.size.x,
-                    y: trans.y - self.size.y / 2.0,
+                    x: self.size.x,
+                    y: -self.size.y / 2.0,
                 },
+            },
+        );
+        (
+            Triangle {
+                a: trans + rotate(pre_rotation.0.a, self.angle),
+                b: trans + rotate(pre_rotation.0.b, self.angle),
+                c: trans + rotate(pre_rotation.0.c, self.angle),
+            },
+            Triangle {
+                a: trans + rotate(pre_rotation.1.a, self.angle),
+                b: trans + rotate(pre_rotation.1.b, self.angle),
+                c: trans + rotate(pre_rotation.1.c, self.angle),
             },
         )
     }
@@ -101,7 +117,7 @@ pub fn eye_tether(
     for (e, sb, mut t) in eyes.iter_mut() {
         let Ok(parent) = agents.get(e.parent) else { continue };
         t.translation = parent.translation;
-        t.rotation = Quat::from_axis_angle(Vec3::new(0., 0., 1.), sb.angle);
+        t.rotation = Quat::from_axis_angle(Vec3::new(0., 0., 1.), 3.141592654321 + sb.angle);
     }
 }
 
@@ -143,6 +159,9 @@ pub fn eye_see(
                 }
                 println!("Dist is {}", min_dist.unwrap());
             }
+        }
+        if !collision {
+            println!("No collision");
         }
     }
 }

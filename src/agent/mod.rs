@@ -70,7 +70,7 @@ pub fn agent_setup(mut commands: Commands) {
         id,
         Vec2 { x: 0.0, y: 0.0 },
         Vec2 { x: 100.0, y: 10.0 },
-        3.14,
+        -3.1415926 / 4.0,
     ));
 }
 

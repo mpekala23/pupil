@@ -73,6 +73,13 @@ impl Hitbox {
     }
 }
 
+pub fn rotate(v: Vec2, angle: f32) -> Vec2 {
+    Vec2 {
+        x: v.x * angle.cos() - v.y * angle.sin(),
+        y: v.x * angle.sin() + v.y * angle.cos(),
+    }
+}
+
 // Simple velocity
 #[derive(Component)]
 pub struct Velocity {
