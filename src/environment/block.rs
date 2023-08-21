@@ -1,7 +1,7 @@
 use bevy::{prelude::*, render::texture::DEFAULT_IMAGE_HANDLE};
 
 use super::consts::*;
-use crate::physics::Hitbox;
+use crate::{agent::eye::Seeable, physics::Hitbox};
 
 #[derive(Component)]
 pub struct Block;
@@ -9,6 +9,7 @@ pub struct Block;
 #[derive(Bundle)]
 pub struct BlockBundle {
     _block: Block,
+    _seeable: Seeable,
     spatial: SpatialBundle,
     sprite: Sprite,
     texture: Handle<Image>,
@@ -18,6 +19,7 @@ impl BlockBundle {
     pub fn new(pos: Vec2, size: Vec2) -> BlockBundle {
         BlockBundle {
             _block: Block,
+            _seeable: Seeable,
             spatial: SpatialBundle {
                 transform: Transform {
                     translation: pos.extend(0.0),

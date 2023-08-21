@@ -1,8 +1,10 @@
 pub mod consts;
+pub mod eye;
 
 use bevy::{prelude::*, render::texture::DEFAULT_IMAGE_HANDLE, utils::HashMap};
 use consts::*;
 
+use self::eye::{register_eye, Eye, EyeBundle};
 use crate::physics::{consts::GRAVITY, Hitbox, Moveable, Velocity};
 
 #[derive(Component)]
@@ -10,7 +12,7 @@ pub struct Agent;
 
 #[derive(Component)]
 pub struct Observation {
-    senses: HashMap<String, f32>,
+    senses: HashMap<Entity, Option<f32>>,
 }
 
 #[derive(Component)]
@@ -41,7 +43,7 @@ impl AgentBundle {
                 ..default()
             },
             sprite: Sprite {
-                color: Color::rgb(0.5, 1.0, 0.3),
+                color: Color::rgb(0.1, 0.3, 0.1),
                 ..default()
             },
             texture: DEFAULT_IMAGE_HANDLE.typed(),
@@ -58,9 +60,17 @@ impl AgentBundle {
 }
 
 pub fn agent_setup(mut commands: Commands) {
-    commands.spawn(AgentBundle::new(
-        Vec2 { x: 0.0, y: 100.0 },
-        Vec2 { x: 60.0, y: 60.0 },
+    let id = commands
+        .spawn(AgentBundle::new(
+            Vec2 { x: 0.0, y: 200.0 },
+            Vec2 { x: 60.0, y: 60.0 },
+        ))
+        .id();
+    commands.spawn(EyeBundle::new(
+        id,
+        Vec2 { x: 0.0, y: 0.0 },
+        Vec2 { x: 100.0, y: 10.0 },
+        3.14,
     ));
 }
 
@@ -78,10 +88,16 @@ pub fn agent_move(mut query: Query<&mut Velocity, With<Agent>>, input: Res<Input
     let mut velocity = query.single_mut();
     // Horizontal motion
     if input.any_pressed([KeyCode::A, KeyCode::Left]) {
-        velocity.x = -MOVE_SPEED;
+        velocity.x -= X_ACCELERATION;
     } else if input.any_pressed([KeyCode::D, KeyCode::Right]) {
-        velocity.x = MOVE_SPEED;
+        velocity.x += X_ACCELERATION;
     } else {
+        velocity.x *= 0.92;
+    }
+    if velocity.x.abs() > MAX_X_MOVE_SPEED {
+        velocity.x = if velocity.x > 0.0 { 1.0 } else { -1.0 } * MAX_X_MOVE_SPEED;
+    }
+    if velocity.x.abs() < 0.1 {
         velocity.x = 0.0;
     }
     // Vertical motion
@@ -92,6 +108,7 @@ pub fn agent_move(mut query: Query<&mut Velocity, With<Agent>>, input: Res<Input
 
 pub fn register_agent(app: &mut App) {
     app.add_systems(Startup, agent_setup)
-        .add_systems(FixedUpdate, agent_update)
-        .add_systems(FixedUpdate, agent_move);
+        .add_systems(Update, agent_update)
+        .add_systems(Update, agent_move);
+    register_eye(app);
 }

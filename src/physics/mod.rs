@@ -1,12 +1,11 @@
+pub mod collisions;
 pub mod consts;
-
-use std::cmp::min;
 
 use bevy::prelude::*;
 
 use crate::physics::consts::COLLISION_THRESHOLD;
 
-use self::consts::GRAVITY;
+use self::{collisions::Triangle, consts::GRAVITY};
 
 /// A simple hitbox
 /// Position is relative to the parent's transform
@@ -16,6 +15,62 @@ use self::consts::GRAVITY;
 pub struct Hitbox {
     pub pos: Vec2,
     pub size: Vec2,
+}
+impl Hitbox {
+    pub fn two_triangles(&self, t: &Transform) -> (Triangle, Triangle) {
+        let trans = t.translation;
+        (
+            Triangle {
+                a: Vec2 {
+                    x: trans.x + self.size.x / 2.0,
+                    y: trans.y + self.size.y / 2.0,
+                },
+                b: Vec2 {
+                    x: trans.x - self.size.x / 2.0,
+                    y: trans.y + self.size.y / 2.0,
+                },
+                c: Vec2 {
+                    x: trans.x - self.size.x / 2.0,
+                    y: trans.y - self.size.y / 2.0,
+                },
+            },
+            Triangle {
+                a: Vec2 {
+                    x: trans.x + self.size.x / 2.0,
+                    y: trans.y + self.size.y / 2.0,
+                },
+                b: Vec2 {
+                    x: trans.x - self.size.x / 2.0,
+                    y: trans.y - self.size.y / 2.0,
+                },
+                c: Vec2 {
+                    x: trans.x + self.size.x / 2.0,
+                    y: trans.y - self.size.y / 2.0,
+                },
+            },
+        )
+    }
+
+    pub fn segments(&self, t: &Transform) -> Vec<(Vec2, Vec2)> {
+        let trans = t.translation;
+        let a = Vec2 {
+            x: trans.x - self.size.x / 2.0,
+            y: trans.y - self.size.y / 2.0,
+        };
+        let b = Vec2 {
+            x: trans.x - self.size.x / 2.0,
+            y: trans.y + self.size.y / 2.0,
+        };
+        let c = Vec2 {
+            x: trans.x + self.size.x / 2.0,
+            y: trans.y + self.size.y / 2.0,
+        };
+        let d = Vec2 {
+            x: trans.x + self.size.x / 2.0,
+            y: trans.y - self.size.y / 2.0,
+        };
+        vec![(a, b), (b, c), (c, d), (d, a)]
+    }
 }
 
 // Simple velocity
@@ -32,8 +87,13 @@ pub struct Moveable;
 pub fn physics_setup(mut commands: Commands) {}
 
 pub fn physics_gravity(time: Res<Time>, mut query: Query<&mut Velocity, With<Moveable>>) {
+    const SUPPOSED_SPF: f32 = 1.0 / 60.0;
+    let mut adjust_mult = time.delta_seconds();
+    if adjust_mult > SUPPOSED_SPF * 3.0 {
+        adjust_mult = SUPPOSED_SPF * 3.0;
+    }
     for mut velocity in query.iter_mut() {
-        velocity.y -= GRAVITY * time.delta_seconds();
+        velocity.y -= GRAVITY * adjust_mult;
     }
 }
 
@@ -100,16 +160,26 @@ pub fn resolve_move_immove_collision(
     // Resolve appropriately
     if left_resolve <= min_resolve {
         t1.translation.x -= left_resolve;
-        v1.x *= -1.0 * 0.4;
+        if v1.x > 0.0 {
+            v1.x *= -1.0 * 0.4;
+        }
     } else if right_resolve <= min_resolve {
         t1.translation.x += right_resolve;
-        v1.x *= -1.0 * 0.4;
+        if v1.x < 0.0 {
+            v1.x *= -1.0 * 0.4;
+        }
     } else if top_resolve <= min_resolve {
         t1.translation.y += top_resolve;
-        v1.y *= -1.0 * 0.4;
+        if v1.y < 0.0 {
+            // Only flip velocity if would move further into this thing
+            v1.y *= -1.0 * 0.4;
+        }
     } else {
         t1.translation.y -= bot_resolve;
-        v1.y *= -1.0 * 0.4;
+        if v1.y > 0.0 {
+            // Only flip velocity if would move further into this thing
+            v1.y *= -1.0 * 0.4;
+        }
     }
     if v1.x.abs() < COLLISION_THRESHOLD {
         v1.x = 0.0;
@@ -139,7 +209,7 @@ pub fn physics_collide(
 
 pub fn register_physics(app: &mut App) {
     app.add_systems(Startup, physics_setup)
-        .add_systems(FixedUpdate, physics_gravity)
-        .add_systems(FixedUpdate, physics_move.after(physics_gravity))
-        .add_systems(FixedUpdate, physics_collide.after(physics_move));
+        .add_systems(Update, physics_gravity)
+        .add_systems(Update, physics_move.after(physics_gravity))
+        .add_systems(Update, physics_collide.after(physics_move));
 }

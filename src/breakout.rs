@@ -56,7 +56,7 @@ fn main() {
         .add_systems(Startup, setup)
         // Add our gameplay simulation systems to the fixed timestep schedule
         .add_systems(
-            FixedUpdate,
+            Update,
             (
                 check_for_collisions,
                 apply_velocity.before(check_for_collisions),

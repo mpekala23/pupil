@@ -23,9 +23,9 @@ fn main() {
     app.add_plugins(DefaultPlugins)
         .insert_resource(ClearColor(Color::rgb(1.0, 1.0, 1.0)))
         .add_systems(Startup, main_setup);
-    register_agent(&mut app);
     register_environment(&mut app);
     register_meta(&mut app);
     register_physics(&mut app);
+    register_agent(&mut app);
     app.run();
 }
