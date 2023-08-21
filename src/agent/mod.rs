@@ -72,13 +72,20 @@ pub fn agent_setup(mut commands: Commands) {
         Vec2 { x: 100.0, y: 10.0 },
         -3.1415926 / 4.0,
     ));
+    commands.spawn(EyeBundle::new(
+        id,
+        Vec2 { x: 0.0, y: 0.0 },
+        Vec2 { x: 100.0, y: 40.0 },
+        3.1415926,
+    ));
 }
 
-pub fn agent_update(mut query: Query<&mut Transform, With<Agent>>) {
+pub fn agent_update(mut query: Query<(&mut Transform, &Observation), With<Agent>>) {
     if query.is_empty() {
         return;
     }
-    let mut _agent = query.single_mut();
+    let (_agent, observations) = query.single_mut();
+    println!("{:?}", observations.senses);
 }
 
 pub fn agent_move(mut query: Query<&mut Velocity, With<Agent>>, input: Res<Input<KeyCode>>) {

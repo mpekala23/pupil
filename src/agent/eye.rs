@@ -1,12 +1,7 @@
-use crate::physics::{
-    are_colliding,
-    collisions::{distance_point_to_segment, Triangle},
-    consts::GRAVITY,
-    physics_move, rotate, Hitbox, Moveable, Velocity,
-};
-use bevy::{prelude::*, render::texture::DEFAULT_IMAGE_HANDLE, sprite::Anchor, utils::HashMap};
+use crate::physics::{collisions::Triangle, physics_move, rotate, Hitbox};
+use bevy::{prelude::*, render::texture::DEFAULT_IMAGE_HANDLE, sprite::Anchor};
 
-use super::{Agent, Observation};
+use super::Observation;
 
 #[derive(Component)]
 pub struct Eye {
@@ -69,6 +64,14 @@ impl SeeBox {
             },
         )
     }
+
+    pub fn to_scale(&self, scale: f32) -> SeeBox {
+        SeeBox {
+            pos: self.pos,
+            size: self.size * scale,
+            angle: self.angle,
+        }
+    }
 }
 
 #[derive(Component)]
@@ -121,48 +124,52 @@ pub fn eye_tether(
     }
 }
 
+pub fn is_detected(
+    sb: &SeeBox,
+    eye_t: &Transform,
+    seeable: &Query<(&Hitbox, &Seeable, &Transform), With<Seeable>>,
+) -> bool {
+    let (et1, et2) = sb.two_triangles(eye_t);
+    for (hb, _, see_t) in seeable.iter() {
+        let (st1, st2) = hb.two_triangles(see_t);
+        if et1.is_colliding_with_triangle(&st1)
+            || et1.is_colliding_with_triangle(&st2)
+            || et2.is_colliding_with_triangle(&st1)
+            || et2.is_colliding_with_triangle(&st2)
+        {
+            return true;
+        }
+    }
+    false
+}
+
 /// For having eyes try to see things
 pub fn eye_see(
     eyes: Query<(Entity, &Eye, &SeeBox, &Transform), With<Eye>>,
     seeable: Query<(&Hitbox, &Seeable, &Transform), With<Seeable>>,
-    mut agents: Query<&Observation, Without<Eye>>,
+    mut agents: Query<&mut Observation, Without<Eye>>,
 ) {
     for (id, e, sb, eye_t) in eyes.iter() {
-        let (et1, et2) = sb.two_triangles(eye_t);
-        let mut collision = false;
-        for (hb, _, see_t) in seeable.iter() {
-            let (st1, st2) = hb.two_triangles(see_t);
-            if et1.is_colliding_with_triangle(&st1)
-                || et1.is_colliding_with_triangle(&st2)
-                || et2.is_colliding_with_triangle(&st1)
-                || et2.is_colliding_with_triangle(&st2)
-            {
-                println!("Collision!");
-                let segments = hb.segments(see_t);
-                let mut min_dist: Option<f32> = None;
-                let eye_trans = Vec2 {
-                    x: eye_t.translation.x,
-                    y: eye_t.translation.y,
-                };
-                for seg in segments {
-                    let dist = distance_point_to_segment(eye_trans, seg);
-                    min_dist = match min_dist {
-                        None => Some(dist),
-                        Some(old_dist) => {
-                            if dist < old_dist {
-                                Some(dist)
-                            } else {
-                                Some(old_dist)
-                            }
-                        }
-                    }
-                }
-                println!("Dist is {}", min_dist.unwrap());
+        let Ok(mut agent) = agents.get_mut(e.parent) else {continue;};
+        if !is_detected(sb, eye_t, &seeable) {
+            agent.senses.insert(id, None);
+            continue;
+        }
+        // Perform binary search with different seeboxes to find distances
+        let resolution = 8;
+        let mut min = 0.0;
+        let mut max = 1.0;
+        let mut mid = 0.5;
+        for _ in 0..resolution {
+            let sized_sb = sb.to_scale(mid);
+            if is_detected(&sized_sb, eye_t, &seeable) {
+                max = mid;
+            } else {
+                min = mid;
             }
+            mid = (min + max) / 2.0;
         }
-        if !collision {
-            println!("No collision");
-        }
+        agent.senses.insert(id, Some(mid));
     }
 }
 
