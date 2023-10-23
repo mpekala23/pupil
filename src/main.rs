@@ -4,9 +4,12 @@ pub mod meta;
 pub mod physics;
 
 use agent::register_agent;
-use bevy::prelude::*;
+use bevy::{prelude::*, window::WindowResolution};
 use environment::register_environment;
-use meta::register_meta;
+use meta::{
+    consts::{WINDOW_HEIGHT, WINDOW_WIDTH},
+    register_meta,
+};
 use physics::register_physics;
 
 pub fn main_setup(
@@ -20,9 +23,17 @@ pub fn main_setup(
 
 fn main() {
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins)
-        .insert_resource(ClearColor(Color::rgb(1.0, 1.0, 1.0)))
-        .add_systems(Startup, main_setup);
+    app.add_plugins(DefaultPlugins.set(WindowPlugin {
+        primary_window: Some(Window {
+            // present_mode: (),
+            resolution: WindowResolution::new(WINDOW_WIDTH, WINDOW_HEIGHT),
+            title: "PUPIL".to_string(),
+            ..default()
+        }),
+        ..default()
+    }))
+    .insert_resource(ClearColor(Color::rgb(1.0, 1.0, 1.0)))
+    .add_systems(Startup, main_setup);
     register_environment(&mut app);
     register_meta(&mut app);
     register_physics(&mut app);

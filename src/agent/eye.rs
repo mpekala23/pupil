@@ -1,11 +1,12 @@
 use crate::physics::{collisions::Triangle, physics_move, rotate, Hitbox};
 use bevy::{prelude::*, render::texture::DEFAULT_IMAGE_HANDLE, sprite::Anchor};
 
-use super::Observation;
+use super::Senses;
 
 #[derive(Component)]
 pub struct Eye {
     parent: Entity,
+    ix: usize,
 }
 
 #[derive(Component)]
@@ -86,9 +87,9 @@ pub struct EyeBundle {
     seebox: SeeBox,
 }
 impl EyeBundle {
-    pub fn new(parent: Entity, pos: Vec2, size: Vec2, angle: f32) -> EyeBundle {
+    pub fn new(parent: Entity, ix: usize, pos: Vec2, size: Vec2, angle: f32) -> EyeBundle {
         EyeBundle {
-            _eye: Eye { parent },
+            _eye: Eye { parent, ix },
             spatial: SpatialBundle {
                 transform: Transform {
                     translation: pos.extend(0.0),
@@ -145,14 +146,14 @@ pub fn is_detected(
 
 /// For having eyes try to see things
 pub fn eye_see(
-    eyes: Query<(Entity, &Eye, &SeeBox, &Transform), With<Eye>>,
+    eyes: Query<(&Eye, &SeeBox, &Transform), With<Eye>>,
     seeable: Query<(&Hitbox, &Seeable, &Transform), With<Seeable>>,
-    mut agents: Query<&mut Observation, Without<Eye>>,
+    mut agents: Query<&mut Senses, Without<Eye>>,
 ) {
-    for (id, e, sb, eye_t) in eyes.iter() {
-        let Ok(mut agent) = agents.get_mut(e.parent) else {continue;};
+    for (e, sb, eye_t) in eyes.iter() {
+        let Ok(mut senses) = agents.get_mut(e.parent) else {continue;};
         if !is_detected(sb, eye_t, &seeable) {
-            agent.senses.insert(id, None);
+            senses.data[e.ix] = None;
             continue;
         }
         // Perform binary search with different seeboxes to find distances
@@ -169,7 +170,7 @@ pub fn eye_see(
             }
             mid = (min + max) / 2.0;
         }
-        agent.senses.insert(id, Some(mid));
+        senses.data[e.ix] = Some(mid);
     }
 }
 
