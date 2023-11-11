@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod animation;
 pub mod environment;
 pub mod meta;
 pub mod physics;
