@@ -5,6 +5,7 @@ pub mod meta;
 pub mod physics;
 
 use agent::register_agent;
+use animation::register_animations;
 use bevy::{prelude::*, window::WindowResolution};
 use environment::register_environment;
 use meta::{
@@ -35,6 +36,7 @@ fn main() {
     }))
     .insert_resource(ClearColor(Color::rgb(1.0, 1.0, 1.0)))
     .add_systems(Startup, main_setup);
+    register_animations(&mut app);
     register_environment(&mut app);
     register_meta(&mut app);
     register_physics(&mut app);

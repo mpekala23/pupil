@@ -6,6 +6,7 @@ use bevy::{prelude::*, render::texture::DEFAULT_IMAGE_HANDLE};
 use consts::*;
 
 use self::eye::{register_eye, EyeBundle};
+use crate::animation::{Animatable, AnimationManager, AnimationRoot};
 use crate::physics::{consts::GRAVITY, Hitbox, Moveable, Velocity};
 
 #[derive(Component)]
@@ -19,42 +20,17 @@ pub struct Senses {
     data: Vec<Option<f32>>,
 }
 
-#[derive(Component)]
-struct AnimationIndices {
-    first: usize,
-    last: usize,
+#[derive(Clone, Hash, Eq, PartialEq, Component)]
+pub enum AgentAnimState {
+    Idle,
 }
-
-#[derive(Component, Deref, DerefMut)]
-struct AnimationTimer(Timer);
-
-fn animate_sprite(
-    time: Res<Time>,
-    mut query: Query<(
-        &AnimationIndices,
-        &mut AnimationTimer,
-        &mut TextureAtlasSprite,
-    )>,
-) {
-    for (indices, mut timer, mut sprite) in &mut query {
-        timer.tick(time.delta());
-        if timer.just_finished() {
-            sprite.index = if sprite.index == indices.last {
-                indices.first
-            } else {
-                sprite.index + 1
-            };
-        }
-    }
-}
+impl Animatable for AgentAnimState {}
 
 #[derive(Bundle)]
 pub struct AgentBundle {
     _agent: Agent,
     _movable: Moveable,
     spatial: SpatialBundle,
-    sprite: Sprite,
-    texture: Handle<Image>,
     senses: Senses,
     hitbox: Hitbox,
     velocity: Velocity,
@@ -72,11 +48,6 @@ impl AgentBundle {
                 },
                 ..default()
             },
-            sprite: Sprite {
-                color: Color::rgb(0.1, 0.3, 0.1),
-                ..default()
-            },
-            texture: DEFAULT_IMAGE_HANDLE.typed(),
             senses: Senses {
                 data: vec![None; num_senses],
             },
@@ -97,7 +68,7 @@ pub fn agent_setup(
     let id = commands
         .spawn(AgentBundle::new(
             Vec2 { x: 0.0, y: 200.0 },
-            Vec2 { x: 60.0, y: 60.0 },
+            Vec2 { x: 64.0, y: 64.0 },
             2,
         ))
         .id();
@@ -115,21 +86,18 @@ pub fn agent_setup(
         Vec2 { x: 100.0, y: 40.0 },
         3.1415926,
     ));
-    let texture_handle = asset_server.load("sprites/narf/Idle.png");
-    let texture_atlas =
-        TextureAtlas::from_grid(texture_handle, Vec2::new(32.0, 32.0), 5, 1, None, None);
-    let texture_atlas_handle = texture_atlases.add(texture_atlas);
-    // Use only the subset of sprites in the sheet that make up the run animation
-    let animation_indices = AnimationIndices { first: 0, last: 4 };
-    commands.spawn((
-        SpriteSheetBundle {
-            texture_atlas: texture_atlas_handle,
-            sprite: TextureAtlasSprite::new(animation_indices.first),
-            transform: Transform::from_scale(Vec3::splat(6.0)),
-            ..default()
-        },
-        animation_indices,
-        AnimationTimer(Timer::from_seconds(0.1, TimerMode::Repeating)),
+    commands.spawn(AnimationManager::<AgentAnimState>::new(
+        id,
+        &vec![AnimationRoot::<AgentAnimState> {
+            state: AgentAnimState::Idle,
+            filename: "sprites/narf/Idle.png".to_string(),
+            width: 32,
+            height: 32,
+            length: 5,
+        }],
+        AgentAnimState::Idle,
+        &asset_server,
+        &mut texture_atlases,
     ));
 }
 
@@ -138,7 +106,6 @@ pub fn agent_update(mut query: Query<(&mut Transform, &Senses), With<Agent>>) {
         return;
     }
     let (_agent, senses) = query.single_mut();
-    println!("{:?}", senses);
 }
 
 pub fn agent_move(mut query: Query<&mut Velocity, With<Agent>>, input: Res<Input<KeyCode>>) {
@@ -169,7 +136,6 @@ pub fn agent_move(mut query: Query<&mut Velocity, With<Agent>>, input: Res<Input
 pub fn register_agent(app: &mut App) {
     app.add_systems(Startup, agent_setup)
         .add_systems(Update, agent_update)
-        .add_systems(Update, animate_sprite)
         .add_systems(Update, agent_move);
     register_eye(app);
 }
