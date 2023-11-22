@@ -1,9 +1,10 @@
-use crate::agent::Agent;
+use crate::agent::{delete_all_agents, Agent, AgentBundle};
 use bevy::prelude::*;
 
 use self::consts::{WINDOW_HEIGHT, WINDOW_WIDTH};
 pub mod consts;
 
+#[derive(PartialEq, Debug)]
 pub enum LevelState {
     Designing,
     Testing,
@@ -20,6 +21,24 @@ pub fn meta_setup(mut commands: Commands) {
         level_state: LevelState::Designing,
         spawn_loc: Vec2 { x: 0.0, y: 100.0 },
     });
+}
+
+pub fn meta_handle_state_switch(
+    commands: Commands,
+    mut meta: ResMut<MetaState>,
+    input: Res<Input<KeyCode>>,
+    agents_query: Query<Entity, With<Agent>>,
+) {
+    if input.just_pressed(KeyCode::Space) {
+        if meta.level_state == LevelState::Designing {
+            // Switching to testing
+            delete_all_agents(commands, agents_query);
+            meta.level_state = LevelState::Testing;
+        } else {
+            meta.level_state = LevelState::Designing;
+        }
+        println!("{:?}", meta.level_state);
+    }
 }
 
 pub fn check_oob(mut query: Query<&mut Transform, With<Agent>>) {
@@ -40,4 +59,5 @@ pub fn check_oob(mut query: Query<&mut Transform, With<Agent>>) {
 pub fn register_meta(app: &mut App) {
     app.add_systems(Startup, meta_setup);
     app.add_systems(Update, check_oob);
+    app.add_systems(Update, meta_handle_state_switch);
 }

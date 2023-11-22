@@ -46,7 +46,6 @@ pub struct SpriteMap<State: Animatable> {
 
 #[derive(Component)]
 pub struct AnimationManager<State: Animatable> {
-    pub parent: Entity,
     pub output_sheet: Option<Entity>,
     pub sprite_map: HashMap<State, SpriteSheetBundle>,
     pub root_map: HashMap<State, AnimationRoot<State>>,
@@ -82,7 +81,6 @@ impl<State: Animatable> AnimationManager<State> {
             root_map.insert(root.state.clone(), root.clone());
         }
         return Self {
-            parent,
             output_sheet: None,
             sprite_map,
             root_map,
@@ -95,41 +93,39 @@ impl<State: Animatable> AnimationManager<State> {
 macro_rules! animate_state_update {
     ($type: ty, $fname: ident) => {
         fn $fname(
-            mut commands: Commands,
             time: Res<Time>,
-            mut query: Query<&mut AnimationManager<$type>>,
-            things: Query<(&Transform, &AnimationVal<$type>), Without<TextureAtlasSprite>>,
-            mut output_sheets: Query<(&mut TextureAtlasSprite, &mut Handle<TextureAtlas>, &mut Transform)>,
+            mut query: Query<(
+                &AnimationVal<$type>,
+                &mut AnimationManager<$type>,
+                &mut Handle<TextureAtlas>,
+                &mut TextureAtlasSprite,
+            )>,
         ) {
-            for mut manager in &mut query {
-                let Ok((parent_transform, parent_anim_state)) = things.get(manager.parent) else {continue};
-                let cur_state = parent_anim_state.clone();
-                let cur_sheet = manager.sprite_map.get_mut(&cur_state.state).unwrap().clone();
-                if manager.output_sheet.is_none() {
-                    let output_sheet = commands.spawn(cur_sheet);
-                    manager.output_sheet = Some(output_sheet.id());
-                } else {
-                    let Ok((mut output_sprite, mut output_atlas, mut output_transform)) = output_sheets.get_mut(manager.output_sheet.unwrap()) else {continue};
-                    if *output_atlas != cur_sheet.texture_atlas {
-                        // The animation state has changed
-                        *output_atlas = cur_sheet.texture_atlas;
-                        output_sprite.index = 0;
-                    }
-                    output_transform.translation = parent_transform.translation;
-                    let cur_root = manager.root_map.get(&cur_state.state).unwrap();
-                    let length = cur_root.length;
-                    manager.timer.tick(time.delta());
-                    output_sprite.custom_size = Some(Vec2{ x: 64.0, y: 64.0});
-                    if manager.timer.just_finished() {
-                        output_sprite.index = if output_sprite.index >= length - 1 {
-                            0
-                        } else {
-                            output_sprite.index + 1
-                        };
-                    }
-                    output_sprite.flip_x = cur_state.invert_x;
-                    output_sprite.flip_y = cur_state.invert_y;
+            for (anim_val, mut manager, mut hand, mut sprite) in &mut query {
+                let cur_state = anim_val.clone();
+                let cur_sheet = manager
+                    .sprite_map
+                    .get_mut(&cur_state.state)
+                    .unwrap()
+                    .clone();
+                if *hand != cur_sheet.texture_atlas {
+                    // The animation state has changed
+                    *hand = cur_sheet.texture_atlas;
+                    sprite.index = 0;
                 }
+                let cur_root = manager.root_map.get(&cur_state.state).unwrap();
+                let length = cur_root.length;
+                manager.timer.tick(time.delta());
+                sprite.custom_size = Some(Vec2 { x: 64.0, y: 64.0 });
+                if manager.timer.just_finished() {
+                    sprite.index = if sprite.index >= length - 1 {
+                        0
+                    } else {
+                        sprite.index + 1
+                    };
+                }
+                sprite.flip_x = cur_state.invert_x;
+                sprite.flip_y = cur_state.invert_y;
             }
         }
     };

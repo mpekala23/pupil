@@ -5,7 +5,7 @@ pub mod eye;
 use bevy::prelude::*;
 use consts::*;
 
-use self::eye::{register_eye, EyeBundle};
+use self::eye::{register_eye, EyeBundle, SeeBox};
 use crate::animation::{Animatable, AnimationManager, AnimationRoot, AnimationVal};
 use crate::physics::{consts::GRAVITY, Hitbox, Moveable, Velocity};
 
@@ -24,6 +24,7 @@ pub struct Senses {
 pub enum AgentAnimState {
     Idle,
     Walk,
+    InAir,
 }
 impl Animatable for AgentAnimState {}
 
@@ -38,7 +39,7 @@ pub struct AgentBundle {
     velocity: Velocity,
 }
 impl AgentBundle {
-    fn new(pos: Vec2, size: Vec2, num_senses: usize) -> AgentBundle {
+    pub fn new(pos: Vec2, size: Vec2, num_senses: usize) -> AgentBundle {
         AgentBundle {
             _agent: Agent,
             _movable: Moveable,
@@ -52,7 +53,7 @@ impl AgentBundle {
             },
             anim_state: AnimationVal {
                 state: AgentAnimState::Idle,
-                invert_x: true,
+                invert_x: false,
                 invert_y: false,
             },
             senses: Senses {
@@ -67,8 +68,9 @@ impl AgentBundle {
     }
 }
 
-pub fn agent_setup(
+pub fn spawn_agent(
     mut commands: Commands,
+    eye_info: Vec<SeeBox>,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
@@ -79,41 +81,69 @@ pub fn agent_setup(
             2,
         ))
         .id();
-    commands.spawn(EyeBundle::new(
-        id,
-        0,
-        Vec2 { x: 0.0, y: 0.0 },
-        Vec2 { x: 100.0, y: 10.0 },
-        -3.1415926 / 4.0,
+    for (ix, see_box) in eye_info.into_iter().enumerate() {
+        commands.spawn(EyeBundle::new(
+            id,
+            ix,
+            see_box.pos,
+            see_box.size,
+            see_box.angle,
+        ));
+    }
+    commands.entity(id).insert((
+        AnimationManager::<AgentAnimState>::new(
+            id,
+            &vec![
+                AnimationRoot::<AgentAnimState> {
+                    state: AgentAnimState::Idle,
+                    filename: "sprites/narf/Idle.png".to_string(),
+                    width: 32,
+                    height: 32,
+                    length: 5,
+                },
+                AnimationRoot::<AgentAnimState> {
+                    state: AgentAnimState::Walk,
+                    filename: "sprites/narf/Walk.png".to_string(),
+                    width: 32,
+                    height: 32,
+                    length: 8,
+                },
+                AnimationRoot::<AgentAnimState> {
+                    state: AgentAnimState::InAir,
+                    filename: "sprites/narf/InAir.png".to_string(),
+                    width: 32,
+                    height: 32,
+                    length: 1,
+                },
+            ],
+            &asset_server,
+            &mut texture_atlases,
+        ),
+        SpriteSheetBundle::default(),
     ));
-    commands.spawn(EyeBundle::new(
-        id,
-        1,
-        Vec2 { x: 0.0, y: 0.0 },
-        Vec2 { x: 100.0, y: 40.0 },
-        3.1415926,
-    ));
-    commands.spawn(AnimationManager::<AgentAnimState>::new(
-        id,
-        &vec![
-            AnimationRoot::<AgentAnimState> {
-                state: AgentAnimState::Idle,
-                filename: "sprites/narf/Idle.png".to_string(),
-                width: 32,
-                height: 32,
-                length: 5,
-            },
-            AnimationRoot::<AgentAnimState> {
-                state: AgentAnimState::Walk,
-                filename: "sprites/narf/Walk.png".to_string(),
-                width: 32,
-                height: 32,
-                length: 8,
-            },
-        ],
-        &asset_server,
-        &mut texture_atlases,
-    ));
+}
+
+pub fn delete_all_agents(mut commands: Commands, agents_query: Query<Entity, With<Agent>>) {
+    for entity in agents_query.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
+}
+
+pub fn agent_setup(
+    commands: Commands,
+    asset_server: Res<AssetServer>,
+    texture_atlases: ResMut<Assets<TextureAtlas>>,
+) {
+    spawn_agent(
+        commands,
+        vec![SeeBox {
+            pos: Vec2 { x: 0.0, y: 0.0 },
+            size: Vec2 { x: 100.0, y: 10.0 },
+            angle: -3.1415926 / 4.0,
+        }],
+        asset_server,
+        texture_atlases,
+    );
 }
 
 pub fn agent_update(mut query: Query<(&mut Transform, &Senses), With<Agent>>) {
@@ -127,11 +157,20 @@ pub fn agent_anim_update(
     mut query: Query<(&Velocity, &mut AnimationVal<AgentAnimState>), With<Agent>>,
 ) {
     for (vel, mut anim_val) in query.iter_mut() {
-        if vel.x.abs() > 0.3 {
-            anim_val.state = AgentAnimState::Walk;
-            anim_val.invert_x = vel.x < 0.0;
+        // The agent animation state machine! Huzzah!
+        if vel.y.abs() > 15.0 {
+            // Assume we're in the air
+            anim_val.state = AgentAnimState::InAir;
+            if vel.x.abs() > 0.1 {
+                anim_val.invert_x = vel.x < 0.0;
+            }
         } else {
-            anim_val.state = AgentAnimState::Idle;
+            if vel.x.abs() > MAX_X_MOVE_SPEED * 0.5 {
+                anim_val.state = AgentAnimState::Walk;
+                anim_val.invert_x = vel.x < 0.0;
+            } else {
+                anim_val.state = AgentAnimState::Idle;
+            }
         }
     }
 }
