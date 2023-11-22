@@ -33,6 +33,13 @@ impl<State> AnimationRoot<State> {
 }
 
 #[derive(Component)]
+pub struct AnimationVal<State: Animatable> {
+    pub state: State,
+    pub invert_x: bool,
+    pub invert_y: bool,
+}
+
+#[derive(Component)]
 pub struct SpriteMap<State: Animatable> {
     pub sprite_map: HashMap<State, SpriteSheetBundle>,
 }
@@ -41,7 +48,6 @@ pub struct SpriteMap<State: Animatable> {
 pub struct AnimationManager<State: Animatable> {
     pub parent: Entity,
     pub output_sheet: Option<Entity>,
-    pub state: State,
     pub sprite_map: HashMap<State, SpriteSheetBundle>,
     pub root_map: HashMap<State, AnimationRoot<State>>,
     timer: AnimationTimer,
@@ -51,7 +57,6 @@ impl<State: Animatable> AnimationManager<State> {
     pub fn new(
         parent: Entity,
         roots: &Vec<AnimationRoot<State>>,
-        initial_state: State,
         asset_server: &Res<AssetServer>,
         texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
     ) -> Self {
@@ -71,7 +76,6 @@ impl<State: Animatable> AnimationManager<State> {
             let sprite_sheet = SpriteSheetBundle {
                 texture_atlas: texture_atlas_handle,
                 sprite: TextureAtlasSprite::new(0),
-                // transform: Transform::from_scale(Vec3::splat(.0 / 32.0)),
                 ..default()
             };
             sprite_map.insert(root.state.clone(), sprite_sheet);
@@ -80,10 +84,9 @@ impl<State: Animatable> AnimationManager<State> {
         return Self {
             parent,
             output_sheet: None,
-            state: initial_state,
             sprite_map,
             root_map,
-            timer: AnimationTimer(Timer::from_seconds(0.12, TimerMode::Repeating)),
+            timer: AnimationTimer(Timer::from_seconds(0.06, TimerMode::Repeating)),
         };
     }
 }
@@ -95,30 +98,37 @@ macro_rules! animate_state_update {
             mut commands: Commands,
             time: Res<Time>,
             mut query: Query<&mut AnimationManager<$type>>,
-            agents: Query<&Transform, Without<TextureAtlasSprite>>,
-            mut output_sheets: Query<(&mut TextureAtlasSprite, &mut Transform)>,
+            things: Query<(&Transform, &AnimationVal<$type>), Without<TextureAtlasSprite>>,
+            mut output_sheets: Query<(&mut TextureAtlasSprite, &mut Handle<TextureAtlas>, &mut Transform)>,
         ) {
             for mut manager in &mut query {
-                let cur_state = manager.state.clone();
-                let cur_sheet = manager.sprite_map.get_mut(&cur_state).unwrap().clone();
+                let Ok((parent_transform, parent_anim_state)) = things.get(manager.parent) else {continue};
+                let cur_state = parent_anim_state.clone();
+                let cur_sheet = manager.sprite_map.get_mut(&cur_state.state).unwrap().clone();
                 if manager.output_sheet.is_none() {
                     let output_sheet = commands.spawn(cur_sheet);
                     manager.output_sheet = Some(output_sheet.id());
                 } else {
-                    let Ok(parent) = agents.get(manager.parent) else {continue};
-                        let Ok((mut output_sprite, mut output_transform)) = output_sheets.get_mut(manager.output_sheet.unwrap()) else {continue};
-                        output_transform.translation = parent.translation;
-                        let cur_root = manager.root_map.get(&manager.state).unwrap();
-                        let length = cur_root.length;
-                        manager.timer.tick(time.delta());
-                        output_sprite.custom_size = Some(Vec2{ x: 64.0, y: 64.0});
-                        if manager.timer.just_finished() {
-                            output_sprite.index = if output_sprite.index >= length - 1 {
-                                0
-                            } else {
-                                output_sprite.index + 1
-                            };
-                        }
+                    let Ok((mut output_sprite, mut output_atlas, mut output_transform)) = output_sheets.get_mut(manager.output_sheet.unwrap()) else {continue};
+                    if *output_atlas != cur_sheet.texture_atlas {
+                        // The animation state has changed
+                        *output_atlas = cur_sheet.texture_atlas;
+                        output_sprite.index = 0;
+                    }
+                    output_transform.translation = parent_transform.translation;
+                    let cur_root = manager.root_map.get(&cur_state.state).unwrap();
+                    let length = cur_root.length;
+                    manager.timer.tick(time.delta());
+                    output_sprite.custom_size = Some(Vec2{ x: 64.0, y: 64.0});
+                    if manager.timer.just_finished() {
+                        output_sprite.index = if output_sprite.index >= length - 1 {
+                            0
+                        } else {
+                            output_sprite.index + 1
+                        };
+                    }
+                    output_sprite.flip_x = cur_state.invert_x;
+                    output_sprite.flip_y = cur_state.invert_y;
                 }
             }
         }

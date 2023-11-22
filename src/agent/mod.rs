@@ -2,11 +2,11 @@ pub mod brain;
 pub mod consts;
 pub mod eye;
 
-use bevy::{prelude::*, render::texture::DEFAULT_IMAGE_HANDLE};
+use bevy::prelude::*;
 use consts::*;
 
 use self::eye::{register_eye, EyeBundle};
-use crate::animation::{Animatable, AnimationManager, AnimationRoot};
+use crate::animation::{Animatable, AnimationManager, AnimationRoot, AnimationVal};
 use crate::physics::{consts::GRAVITY, Hitbox, Moveable, Velocity};
 
 #[derive(Component)]
@@ -23,6 +23,7 @@ pub struct Senses {
 #[derive(Clone, Hash, Eq, PartialEq, Component)]
 pub enum AgentAnimState {
     Idle,
+    Walk,
 }
 impl Animatable for AgentAnimState {}
 
@@ -31,6 +32,7 @@ pub struct AgentBundle {
     _agent: Agent,
     _movable: Moveable,
     spatial: SpatialBundle,
+    anim_state: AnimationVal<AgentAnimState>,
     senses: Senses,
     hitbox: Hitbox,
     velocity: Velocity,
@@ -47,6 +49,11 @@ impl AgentBundle {
                     ..default()
                 },
                 ..default()
+            },
+            anim_state: AnimationVal {
+                state: AgentAnimState::Idle,
+                invert_x: true,
+                invert_y: false,
             },
             senses: Senses {
                 data: vec![None; num_senses],
@@ -88,14 +95,22 @@ pub fn agent_setup(
     ));
     commands.spawn(AnimationManager::<AgentAnimState>::new(
         id,
-        &vec![AnimationRoot::<AgentAnimState> {
-            state: AgentAnimState::Idle,
-            filename: "sprites/narf/Idle.png".to_string(),
-            width: 32,
-            height: 32,
-            length: 5,
-        }],
-        AgentAnimState::Idle,
+        &vec![
+            AnimationRoot::<AgentAnimState> {
+                state: AgentAnimState::Idle,
+                filename: "sprites/narf/Idle.png".to_string(),
+                width: 32,
+                height: 32,
+                length: 5,
+            },
+            AnimationRoot::<AgentAnimState> {
+                state: AgentAnimState::Walk,
+                filename: "sprites/narf/Walk.png".to_string(),
+                width: 32,
+                height: 32,
+                length: 8,
+            },
+        ],
         &asset_server,
         &mut texture_atlases,
     ));
@@ -106,6 +121,19 @@ pub fn agent_update(mut query: Query<(&mut Transform, &Senses), With<Agent>>) {
         return;
     }
     let (_agent, senses) = query.single_mut();
+}
+
+pub fn agent_anim_update(
+    mut query: Query<(&Velocity, &mut AnimationVal<AgentAnimState>), With<Agent>>,
+) {
+    for (vel, mut anim_val) in query.iter_mut() {
+        if vel.x.abs() > 0.3 {
+            anim_val.state = AgentAnimState::Walk;
+            anim_val.invert_x = vel.x < 0.0;
+        } else {
+            anim_val.state = AgentAnimState::Idle;
+        }
+    }
 }
 
 pub fn agent_move(mut query: Query<&mut Velocity, With<Agent>>, input: Res<Input<KeyCode>>) {
@@ -119,7 +147,7 @@ pub fn agent_move(mut query: Query<&mut Velocity, With<Agent>>, input: Res<Input
     } else if input.any_pressed([KeyCode::D, KeyCode::Right]) {
         velocity.x += X_ACCELERATION;
     } else {
-        velocity.x *= 0.92;
+        velocity.x *= 0.82;
     }
     if velocity.x.abs() > MAX_X_MOVE_SPEED {
         velocity.x = if velocity.x > 0.0 { 1.0 } else { -1.0 } * MAX_X_MOVE_SPEED;
@@ -136,6 +164,7 @@ pub fn agent_move(mut query: Query<&mut Velocity, With<Agent>>, input: Res<Input
 pub fn register_agent(app: &mut App) {
     app.add_systems(Startup, agent_setup)
         .add_systems(Update, agent_update)
-        .add_systems(Update, agent_move);
+        .add_systems(Update, agent_move)
+        .add_systems(Update, agent_anim_update);
     register_eye(app);
 }
