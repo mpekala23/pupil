@@ -46,7 +46,6 @@ pub struct SpriteMap<State: Animatable> {
 
 #[derive(Component)]
 pub struct AnimationManager<State: Animatable> {
-    pub output_sheet: Option<Entity>,
     pub sprite_map: HashMap<State, SpriteSheetBundle>,
     pub root_map: HashMap<State, AnimationRoot<State>>,
     timer: AnimationTimer,
@@ -54,7 +53,6 @@ pub struct AnimationManager<State: Animatable> {
 
 impl<State: Animatable> AnimationManager<State> {
     pub fn new(
-        parent: Entity,
         roots: &Vec<AnimationRoot<State>>,
         asset_server: &Res<AssetServer>,
         texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
@@ -81,7 +79,6 @@ impl<State: Animatable> AnimationManager<State> {
             root_map.insert(root.state.clone(), root.clone());
         }
         return Self {
-            output_sheet: None,
             sprite_map,
             root_map,
             timer: AnimationTimer(Timer::from_seconds(0.06, TimerMode::Repeating)),

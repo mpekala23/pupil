@@ -78,21 +78,17 @@ pub fn spawn_agent(
         .spawn(AgentBundle::new(
             Vec2 { x: 0.0, y: 200.0 },
             Vec2 { x: 64.0, y: 64.0 },
-            2,
+            eye_info.len(),
         ))
         .id();
     for (ix, see_box) in eye_info.into_iter().enumerate() {
-        commands.spawn(EyeBundle::new(
-            id,
-            ix,
-            see_box.pos,
-            see_box.size,
-            see_box.angle,
-        ));
+        let eye_id = commands
+            .spawn(EyeBundle::new(ix, see_box.pos, see_box.size, see_box.angle))
+            .id();
+        commands.entity(id).push_children(&[eye_id]);
     }
     commands.entity(id).insert((
         AnimationManager::<AgentAnimState>::new(
-            id,
             &vec![
                 AnimationRoot::<AgentAnimState> {
                     state: AgentAnimState::Idle,
@@ -151,6 +147,7 @@ pub fn agent_update(mut query: Query<(&mut Transform, &Senses), With<Agent>>) {
         return;
     }
     let (_agent, senses) = query.single_mut();
+    println!("{:?}", senses);
 }
 
 pub fn agent_anim_update(
