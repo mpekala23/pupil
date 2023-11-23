@@ -91,7 +91,7 @@ pub struct Velocity {
 #[derive(Component)]
 pub struct Moveable;
 
-pub fn physics_setup(mut commands: Commands) {}
+pub fn physics_setup() {}
 
 pub fn physics_gravity(time: Res<Time>, mut query: Query<&mut Velocity, With<Moveable>>) {
     const SUPPOSED_SPF: f32 = 1.0 / 60.0;

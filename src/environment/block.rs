@@ -1,6 +1,5 @@
 use bevy::{prelude::*, render::texture::DEFAULT_IMAGE_HANDLE};
 
-use super::consts::*;
 use crate::{agent::eye::Seeable, physics::Hitbox};
 
 #[derive(Component)]

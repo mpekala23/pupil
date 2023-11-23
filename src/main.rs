@@ -16,9 +16,9 @@ use physics::register_physics;
 
 pub fn main_setup(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    asset_server: Res<AssetServer>,
+    // mut meshes: ResMut<Assets<Mesh>>,
+    // mut materials: ResMut<Assets<ColorMaterial>>,
+    // asset_server: Res<AssetServer>,
 ) {
     commands.spawn(Camera2dBundle::default());
 }

@@ -20,18 +20,6 @@ pub struct AnimationRoot<State> {
     pub length: usize,
 }
 
-impl<State> AnimationRoot<State> {
-    fn new(state: State, filename: String, width: i32, height: i32, length: usize) -> Self {
-        return Self {
-            state,
-            filename,
-            width,
-            height,
-            length,
-        };
-    }
-}
-
 #[derive(Component)]
 pub struct AnimationVal<State: Animatable> {
     pub state: State,

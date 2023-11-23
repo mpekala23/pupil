@@ -1,4 +1,4 @@
-use crate::agent::{delete_all_agents, Agent, AgentBundle};
+use crate::agent::{delete_all_agents, Agent};
 use bevy::prelude::*;
 
 use self::consts::{WINDOW_HEIGHT, WINDOW_WIDTH};
@@ -13,13 +13,13 @@ pub enum LevelState {
 #[derive(Resource)]
 pub struct MetaState {
     level_state: LevelState,
-    spawn_loc: Vec2,
+    // spawn_loc: Vec2,
 }
 
 pub fn meta_setup(mut commands: Commands) {
     commands.insert_resource(MetaState {
         level_state: LevelState::Designing,
-        spawn_loc: Vec2 { x: 0.0, y: 100.0 },
+        // spawn_loc: Vec2 { x: 0.0, y: 100.0 },
     });
 }
 
