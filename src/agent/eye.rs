@@ -1,4 +1,6 @@
-use crate::physics::{collisions::Triangle, physics_move, rotate, Hitbox};
+use std::f32::consts::PI;
+
+use crate::physics::{collisions::Triangle, consts::Dir, physics_move, rotate, Hitbox};
 use bevy::{prelude::*, render::texture::DEFAULT_IMAGE_HANDLE, sprite::Anchor};
 
 use super::Senses;
@@ -13,6 +15,7 @@ pub struct SeeBox {
     pub pos: Vec2,
     pub size: Vec2,
     pub angle: f32,
+    pub invert_x: bool,
 }
 impl SeeBox {
     pub fn two_triangles(&self, trans: Vec2) -> (Triangle, Triangle) {
@@ -46,16 +49,21 @@ impl SeeBox {
                 },
             },
         );
+        let true_ang = if self.invert_x {
+            PI - self.angle
+        } else {
+            self.angle
+        };
         (
             Triangle {
-                a: trans + rotate(pre_rotation.0.a, self.angle),
-                b: trans + rotate(pre_rotation.0.b, self.angle),
-                c: trans + rotate(pre_rotation.0.c, self.angle),
+                a: trans + rotate(pre_rotation.0.a, true_ang),
+                b: trans + rotate(pre_rotation.0.b, true_ang),
+                c: trans + rotate(pre_rotation.0.c, true_ang),
             },
             Triangle {
-                a: trans + rotate(pre_rotation.1.a, self.angle),
-                b: trans + rotate(pre_rotation.1.b, self.angle),
-                c: trans + rotate(pre_rotation.1.c, self.angle),
+                a: trans + rotate(pre_rotation.1.a, true_ang),
+                b: trans + rotate(pre_rotation.1.b, true_ang),
+                c: trans + rotate(pre_rotation.1.c, true_ang),
             },
         )
     }
@@ -65,6 +73,7 @@ impl SeeBox {
             pos: self.pos,
             size: self.size * scale,
             angle: self.angle,
+            invert_x: self.invert_x,
         }
     }
 }
@@ -103,6 +112,7 @@ impl EyeBundle {
                 pos: Vec2 { x: 0.0, y: 0.0 },
                 size,
                 angle,
+                invert_x: false,
             },
         }
     }
@@ -111,7 +121,7 @@ impl EyeBundle {
 pub fn is_detected(
     sb: &SeeBox,
     pos: Vec2,
-    seeable: &Query<(&Hitbox, &Seeable, &Transform), With<Seeable>>,
+    seeable: &Query<(&Hitbox, &Seeable, &Transform), (With<Seeable>, Without<Eye>)>,
 ) -> bool {
     let (et1, et2) = sb.two_triangles(pos.clone());
     for (hb, _, see_t) in seeable.iter() {
@@ -129,17 +139,25 @@ pub fn is_detected(
 
 /// For having eyes try to see things
 pub fn eye_see(
-    eyes: Query<(&Eye, &SeeBox, &Parent), With<Eye>>,
-    mut agents: Query<(&Transform, &mut Senses)>,
-    seeable: Query<(&Hitbox, &Seeable, &Transform), With<Seeable>>,
+    mut eyes: Query<(&Eye, &mut SeeBox, &Parent, &mut Transform), With<Eye>>,
+    mut agents: Query<(&Transform, &mut Senses, &Dir), Without<Eye>>,
+    seeable: Query<(&Hitbox, &Seeable, &Transform), (With<Seeable>, Without<Eye>)>,
 ) {
-    for (e, sb, parent) in eyes.iter() {
-        let Ok((agent_trans, mut senses)) = agents.get_mut(parent.get()) else {continue;};
+    for (e, mut sb, parent, mut eye_t) in eyes.iter_mut() {
+        let Ok((agent_trans, mut senses, dir)) = agents.get_mut(parent.get()) else {continue;};
+        // Change the display based on facing direction
+        sb.invert_x = dir == &Dir::Left;
+        let true_ang = if sb.invert_x {
+            -sb.angle
+        } else {
+            PI + sb.angle
+        };
+        eye_t.rotation = Quat::from_axis_angle(Vec3::new(0., 0., 1.), true_ang);
         let pos = Vec2 {
             x: agent_trans.translation.x,
             y: agent_trans.translation.y,
         };
-        if !is_detected(sb, pos, &seeable) {
+        if !is_detected(&sb, pos, &seeable) {
             senses.data[e.ix] = None;
             continue;
         }

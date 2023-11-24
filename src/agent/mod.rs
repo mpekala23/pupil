@@ -7,6 +7,7 @@ use consts::*;
 
 use self::eye::{register_eye, EyeBundle, SeeBox};
 use crate::animation::{Animatable, AnimationManager, AnimationRoot, AnimationVal};
+use crate::physics::consts::Dir;
 use crate::physics::{consts::GRAVITY, Hitbox, Moveable, Velocity};
 
 #[derive(Component)]
@@ -32,6 +33,7 @@ impl Animatable for AgentAnimState {}
 pub struct AgentBundle {
     _agent: Agent,
     _movable: Moveable,
+    dir: Dir,
     spatial: SpatialBundle,
     anim_state: AnimationVal<AgentAnimState>,
     senses: Senses,
@@ -43,6 +45,7 @@ impl AgentBundle {
         AgentBundle {
             _agent: Agent,
             _movable: Moveable,
+            dir: Dir::Right,
             spatial: SpatialBundle {
                 transform: Transform {
                     translation: pos.extend(0.0),
@@ -136,6 +139,7 @@ pub fn agent_setup(
             pos: Vec2 { x: 0.0, y: 0.0 },
             size: Vec2 { x: 100.0, y: 10.0 },
             angle: -3.1415926 / 4.0,
+            invert_x: false,
         }],
         asset_server,
         texture_atlases,
@@ -151,9 +155,9 @@ pub fn agent_update(mut query: Query<(&mut Transform, &Senses), With<Agent>>) {
 }
 
 pub fn agent_anim_update(
-    mut query: Query<(&Velocity, &mut AnimationVal<AgentAnimState>), With<Agent>>,
+    mut query: Query<(&Velocity, &mut Dir, &mut AnimationVal<AgentAnimState>), With<Agent>>,
 ) {
-    for (vel, mut anim_val) in query.iter_mut() {
+    for (vel, mut dir, mut anim_val) in query.iter_mut() {
         // The agent animation state machine! Huzzah!
         if vel.y.abs() > 15.0 {
             // Assume we're in the air
@@ -169,6 +173,16 @@ pub fn agent_anim_update(
                 anim_val.state = AgentAnimState::Idle;
             }
         }
+        if vel.x.abs() > 0.1 {
+            if vel.x > 0.0 {
+                *dir = Dir::Right;
+            } else {
+                *dir = Dir::Left;
+            }
+        }
+        // Left / right driven by agent state, since it also affects eyes its weird to
+        // keep it embedded in the animation manager
+        anim_val.invert_x = *dir == Dir::Left;
     }
 }
 
