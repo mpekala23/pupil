@@ -34,7 +34,6 @@ pub struct AgentBundle {
     _agent: Agent,
     _movable: Moveable,
     dir: Dir,
-    spatial: SpatialBundle,
     anim_state: AnimationVal<AgentAnimState>,
     senses: Senses,
     hitbox: Hitbox,
@@ -46,14 +45,6 @@ impl AgentBundle {
             _agent: Agent,
             _movable: Moveable,
             dir: Dir::Right,
-            spatial: SpatialBundle {
-                transform: Transform {
-                    translation: pos.extend(0.0),
-                    scale: size.extend(1.0),
-                    ..default()
-                },
-                ..default()
-            },
             anim_state: AnimationVal {
                 state: AgentAnimState::Idle,
                 invert_x: false,
@@ -73,16 +64,14 @@ impl AgentBundle {
 
 pub fn spawn_agent(
     mut commands: Commands,
+    pos: Vec2,
     eye_info: Vec<SeeBox>,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
+    let size = Vec2 { x: 64.0, y: 64.0 };
     let id = commands
-        .spawn(AgentBundle::new(
-            Vec2 { x: 0.0, y: 200.0 },
-            Vec2 { x: 64.0, y: 64.0 },
-            eye_info.len(),
-        ))
+        .spawn(AgentBundle::new(pos, size.clone(), eye_info.len()))
         .id();
     for (ix, see_box) in eye_info.into_iter().enumerate() {
         let eye_id = commands
@@ -118,33 +107,39 @@ pub fn spawn_agent(
             &asset_server,
             &mut texture_atlases,
         ),
-        SpriteSheetBundle::default(),
+        SpriteSheetBundle {
+            transform: Transform {
+                translation: pos.extend(0.0),
+                ..default()
+            },
+            ..default()
+        },
     ));
 }
 
-pub fn delete_all_agents(mut commands: Commands, agents_query: Query<Entity, With<Agent>>) {
+pub fn delete_all_agents(commands: &mut Commands, agents_query: Query<Entity, With<Agent>>) {
     for entity in agents_query.iter() {
         commands.entity(entity).despawn_recursive();
     }
 }
 
-pub fn agent_setup(
-    commands: Commands,
-    asset_server: Res<AssetServer>,
-    texture_atlases: ResMut<Assets<TextureAtlas>>,
-) {
-    spawn_agent(
-        commands,
-        vec![SeeBox {
-            pos: Vec2 { x: 0.0, y: 0.0 },
-            size: Vec2 { x: 100.0, y: 10.0 },
-            angle: -3.1415926 / 4.0,
-            invert_x: false,
-        }],
-        asset_server,
-        texture_atlases,
-    );
-}
+// pub fn agent_setup(
+//     commands: Commands,
+//     asset_server: Res<AssetServer>,
+//     texture_atlases: ResMut<Assets<TextureAtlas>>,
+// ) {
+//     spawn_agent(
+//         commands,
+//         vec![SeeBox {
+//             pos: Vec2 { x: 0.0, y: 0.0 },
+//             size: Vec2 { x: 100.0, y: 10.0 },
+//             angle: -3.1415926 / 4.0,
+//             invert_x: false,
+//         }],
+//         asset_server,
+//         texture_atlases,
+//     );
+// }
 
 pub fn agent_update(mut query: Query<(&mut Transform, &Senses), With<Agent>>) {
     if query.is_empty() {
@@ -152,6 +147,7 @@ pub fn agent_update(mut query: Query<(&mut Transform, &Senses), With<Agent>>) {
     }
     let (_agent, senses) = query.single_mut();
     println!("{:?}", senses);
+    println!("{:?}", _agent.translation);
 }
 
 pub fn agent_anim_update(
@@ -212,8 +208,7 @@ pub fn agent_move(mut query: Query<&mut Velocity, With<Agent>>, input: Res<Input
 }
 
 pub fn register_agent(app: &mut App) {
-    app.add_systems(Startup, agent_setup)
-        .add_systems(Update, agent_update)
+    app.add_systems(Update, agent_update)
         .add_systems(Update, agent_move)
         .add_systems(Update, agent_anim_update);
     register_eye(app);
