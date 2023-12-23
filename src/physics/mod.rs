@@ -93,7 +93,10 @@ pub struct Moveable;
 
 pub fn physics_setup() {}
 
-pub fn physics_gravity(time: Res<Time>, mut query: Query<&mut Velocity, With<Moveable>>) {
+pub fn physics_gravity(
+    time: Res<Time>,
+    mut query: Query<&mut Velocity, With<Moveable>>,
+) {
     const SUPPOSED_SPF: f32 = 1.0 / 60.0;
     let mut adjust_mult = time.delta_seconds();
     if adjust_mult > SUPPOSED_SPF * 3.0 {
@@ -114,7 +117,10 @@ pub fn physics_move(
     }
 }
 
-pub fn get_bounds(hitbox: &Hitbox, transform: &Transform) -> (f32, f32, f32, f32) {
+pub fn get_bounds(
+    hitbox: &Hitbox,
+    transform: &Transform,
+) -> (f32, f32, f32, f32) {
     let left = transform.translation.x + hitbox.pos.x - hitbox.size.x / 2.0;
     let right = left + hitbox.size.x;
     let top = transform.translation.y + hitbox.pos.y + hitbox.size.y / 2.0;
@@ -122,7 +128,12 @@ pub fn get_bounds(hitbox: &Hitbox, transform: &Transform) -> (f32, f32, f32, f32
     (left, right, top, bot)
 }
 
-pub fn are_colliding(h1: &Hitbox, t1: &Transform, h2: &Hitbox, t2: &Transform) -> bool {
+pub fn are_colliding(
+    h1: &Hitbox,
+    t1: &Transform,
+    h2: &Hitbox,
+    t2: &Transform,
+) -> bool {
     let left1 = t1.translation.x + h1.pos.x - h1.size.x / 2.0;
     let right1 = left1 + h1.size.x;
     let top1 = t1.translation.y + h1.pos.y + h1.size.y / 2.0;
@@ -133,7 +144,10 @@ pub fn are_colliding(h1: &Hitbox, t1: &Transform, h2: &Hitbox, t2: &Transform) -
     let top2 = t2.translation.y + h2.pos.y + h2.size.y / 2.0;
     let bot2 = top2 - h2.size.y;
 
-    return !(bot1 >= top2 || top1 <= bot2 || right1 <= left2 || left1 >= right2);
+    return !(bot1 >= top2
+        || top1 <= bot2
+        || right1 <= left2
+        || left1 >= right2);
 }
 
 pub fn resolve_move_immove_collision(
@@ -197,18 +211,19 @@ pub fn resolve_move_immove_collision(
 }
 
 pub fn physics_collide(
-    mut q_movable: Query<(&Hitbox, &mut Transform, &mut Velocity), With<Moveable>>,
+    mut q_movable: Query<
+        (&Hitbox, &mut Transform, &mut Velocity),
+        With<Moveable>,
+    >,
     q_immovable: Query<(&mut Hitbox, &Transform), Without<Moveable>>,
 ) {
     // First resolve all collisions between two moveable objects
-    // TODO
     // Then resolve all collisions between moveable and immoveable
     for (h1, mut t1, mut v1) in q_movable.iter_mut() {
         for (h2, t2) in q_immovable.iter() {
             if !are_colliding(h1, &t1, h2, t2) {
                 continue;
             }
-            // println!("Would resolve collision {:?}, {:?}", t1, t2);
             resolve_move_immove_collision(h1, &mut t1, &mut v1, h2, t2);
         }
     }

@@ -1,12 +1,17 @@
 pub mod brain;
 pub mod consts;
 pub mod eye;
+pub mod roll;
 
 use bevy::prelude::*;
 use consts::*;
 
 use self::eye::{register_eye, EyeBundle, SeeBox};
-use crate::animation::{Animatable, AnimationManager, AnimationRoot, AnimationVal};
+use crate::animation::{
+    Animatable, AnimationManager, AnimationRoot, AnimationVal,
+};
+use crate::environment::reward::Judgeable;
+use crate::meta::consts::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use crate::physics::consts::Dir;
 use crate::physics::{consts::GRAVITY, Hitbox, Moveable, Velocity};
 
@@ -33,6 +38,7 @@ impl Animatable for AgentAnimState {}
 pub struct AgentBundle {
     _agent: Agent,
     _movable: Moveable,
+    judgement: Judgeable,
     dir: Dir,
     anim_state: AnimationVal<AgentAnimState>,
     senses: Senses,
@@ -40,10 +46,11 @@ pub struct AgentBundle {
     velocity: Velocity,
 }
 impl AgentBundle {
-    pub fn new(pos: Vec2, size: Vec2, num_senses: usize) -> AgentBundle {
+    pub fn new(size: Vec2, num_senses: usize) -> AgentBundle {
         AgentBundle {
             _agent: Agent,
             _movable: Moveable,
+            judgement: Judgeable { reward: 0.0 },
             dir: Dir::Right,
             anim_state: AnimationVal {
                 state: AgentAnimState::Idle,
@@ -63,19 +70,24 @@ impl AgentBundle {
 }
 
 pub fn spawn_agent(
-    mut commands: Commands,
+    commands: &mut Commands,
     pos: Vec2,
     eye_info: Vec<SeeBox>,
-    asset_server: Res<AssetServer>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    asset_server: &Res<AssetServer>,
+    texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
 ) {
     let size = Vec2 { x: 64.0, y: 64.0 };
     let id = commands
-        .spawn(AgentBundle::new(pos, size.clone(), eye_info.len()))
+        .spawn(AgentBundle::new(size.clone(), eye_info.len()))
         .id();
     for (ix, see_box) in eye_info.into_iter().enumerate() {
         let eye_id = commands
-            .spawn(EyeBundle::new(ix, see_box.pos, see_box.size, see_box.angle))
+            .spawn(EyeBundle::new(
+                ix,
+                see_box.pos,
+                see_box.size,
+                see_box.angle,
+            ))
             .id();
         commands.entity(id).push_children(&[eye_id]);
     }
@@ -104,8 +116,8 @@ pub fn spawn_agent(
                     length: 1,
                 },
             ],
-            &asset_server,
-            &mut texture_atlases,
+            asset_server,
+            texture_atlases,
         ),
         SpriteSheetBundle {
             transform: Transform {
@@ -117,41 +129,27 @@ pub fn spawn_agent(
     ));
 }
 
-pub fn delete_all_agents(commands: &mut Commands, agents_query: Query<Entity, With<Agent>>) {
+pub fn delete_all_agents(
+    commands: &mut Commands,
+    agents_query: Query<Entity, With<Agent>>,
+) {
     for entity in agents_query.iter() {
         commands.entity(entity).despawn_recursive();
     }
 }
-
-// pub fn agent_setup(
-//     commands: Commands,
-//     asset_server: Res<AssetServer>,
-//     texture_atlases: ResMut<Assets<TextureAtlas>>,
-// ) {
-//     spawn_agent(
-//         commands,
-//         vec![SeeBox {
-//             pos: Vec2 { x: 0.0, y: 0.0 },
-//             size: Vec2 { x: 100.0, y: 10.0 },
-//             angle: -3.1415926 / 4.0,
-//             invert_x: false,
-//         }],
-//         asset_server,
-//         texture_atlases,
-//     );
-// }
 
 pub fn agent_update(mut query: Query<(&mut Transform, &Senses), With<Agent>>) {
     if query.is_empty() {
         return;
     }
     let (_agent, senses) = query.single_mut();
-    println!("{:?}", senses);
-    println!("{:?}", _agent.translation);
 }
 
 pub fn agent_anim_update(
-    mut query: Query<(&Velocity, &mut Dir, &mut AnimationVal<AgentAnimState>), With<Agent>>,
+    mut query: Query<
+        (&Velocity, &mut Dir, &mut AnimationVal<AgentAnimState>),
+        With<Agent>,
+    >,
 ) {
     for (vel, mut dir, mut anim_val) in query.iter_mut() {
         // The agent animation state machine! Huzzah!
@@ -182,7 +180,10 @@ pub fn agent_anim_update(
     }
 }
 
-pub fn agent_move(mut query: Query<&mut Velocity, With<Agent>>, input: Res<Input<KeyCode>>) {
+pub fn agent_move(
+    mut query: Query<&mut Velocity, With<Agent>>,
+    input: Res<Input<KeyCode>>,
+) {
     if query.is_empty() {
         return;
     };
@@ -196,7 +197,8 @@ pub fn agent_move(mut query: Query<&mut Velocity, With<Agent>>, input: Res<Input
         velocity.x *= 0.82;
     }
     if velocity.x.abs() > MAX_X_MOVE_SPEED {
-        velocity.x = if velocity.x > 0.0 { 1.0 } else { -1.0 } * MAX_X_MOVE_SPEED;
+        velocity.x =
+            if velocity.x > 0.0 { 1.0 } else { -1.0 } * MAX_X_MOVE_SPEED;
     }
     if velocity.x.abs() < 0.1 {
         velocity.x = 0.0;
@@ -207,9 +209,28 @@ pub fn agent_move(mut query: Query<&mut Velocity, With<Agent>>, input: Res<Input
     }
 }
 
+pub fn check_oob(
+    mut commands: Commands,
+    mut query: Query<(&Transform, Entity), With<Agent>>,
+) {
+    if query.is_empty() {
+        return;
+    };
+    for (transform, entity) in query.iter_mut() {
+        if transform.translation.x < -WINDOW_WIDTH / 2.0
+            || WINDOW_WIDTH / 2.0 <= transform.translation.x
+            || transform.translation.y < -WINDOW_HEIGHT / 2.0
+            || WINDOW_HEIGHT / 2.0 < transform.translation.y
+        {
+            commands.entity(entity).despawn_recursive();
+        }
+    }
+}
+
 pub fn register_agent(app: &mut App) {
     app.add_systems(Update, agent_update)
         .add_systems(Update, agent_move)
-        .add_systems(Update, agent_anim_update);
+        .add_systems(Update, agent_anim_update)
+        .add_systems(Update, check_oob);
     register_eye(app);
 }
