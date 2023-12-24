@@ -7,6 +7,7 @@ use bevy::prelude::*;
 use consts::*;
 
 use self::eye::{register_eye, EyeBundle, SeeBox};
+use self::roll::register_roll;
 use crate::animation::{
     Animatable, AnimationManager, AnimationRoot, AnimationVal,
 };
@@ -26,18 +27,19 @@ pub struct Senses {
     data: Vec<Option<f32>>,
 }
 
-#[derive(Clone, Hash, Eq, PartialEq, Component)]
+#[derive(Clone, Hash, Eq, PartialEq, Component, Debug)]
 pub enum AgentAnimState {
     Idle,
     Walk,
     InAir,
+    Dead,
 }
 impl Animatable for AgentAnimState {}
 
 #[derive(Bundle)]
 pub struct AgentBundle {
     _agent: Agent,
-    _movable: Moveable,
+    movable: Moveable,
     judgement: Judgeable,
     dir: Dir,
     anim_state: AnimationVal<AgentAnimState>,
@@ -49,7 +51,9 @@ impl AgentBundle {
     pub fn new(size: Vec2, num_senses: usize) -> AgentBundle {
         AgentBundle {
             _agent: Agent,
-            _movable: Moveable,
+            movable: Moveable {
+                gravity_enabled: true,
+            },
             judgement: Judgeable { reward: 0.0 },
             dir: Dir::Right,
             anim_state: AnimationVal {
@@ -71,7 +75,7 @@ impl AgentBundle {
 
 pub fn spawn_agent(
     commands: &mut Commands,
-    pos: Vec2,
+    pos: &Vec2,
     eye_info: Vec<SeeBox>,
     asset_server: &Res<AssetServer>,
     texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
@@ -115,6 +119,13 @@ pub fn spawn_agent(
                     height: 32,
                     length: 1,
                 },
+                AnimationRoot::<AgentAnimState> {
+                    state: AgentAnimState::Dead,
+                    filename: "sprites/narf/InAir.png".to_string(),
+                    width: 32,
+                    height: 32,
+                    length: 1,
+                },
             ],
             asset_server,
             texture_atlases,
@@ -138,11 +149,10 @@ pub fn delete_all_agents(
     }
 }
 
-pub fn agent_update(mut query: Query<(&mut Transform, &Senses), With<Agent>>) {
+pub fn agent_update(query: Query<(&mut Transform, &Senses), With<Agent>>) {
     if query.is_empty() {
         return;
     }
-    let (_agent, senses) = query.single_mut();
 }
 
 pub fn agent_anim_update(
@@ -153,6 +163,10 @@ pub fn agent_anim_update(
 ) {
     for (vel, mut dir, mut anim_val) in query.iter_mut() {
         // The agent animation state machine! Huzzah!
+        if anim_val.state == AgentAnimState::Dead {
+            // Ignore dead boys
+            continue;
+        }
         if vel.y.abs() > 15.0 {
             // Assume we're in the air
             anim_val.state = AgentAnimState::InAir;
@@ -181,48 +195,66 @@ pub fn agent_anim_update(
 }
 
 pub fn agent_move(
-    mut query: Query<&mut Velocity, With<Agent>>,
+    mut query: Query<
+        (&mut Velocity, &AnimationVal<AgentAnimState>),
+        With<Agent>,
+    >,
     input: Res<Input<KeyCode>>,
 ) {
     if query.is_empty() {
         return;
     };
-    let mut velocity = query.single_mut();
-    // Horizontal motion
-    if input.any_pressed([KeyCode::A, KeyCode::Left]) {
-        velocity.x -= X_ACCELERATION;
-    } else if input.any_pressed([KeyCode::D, KeyCode::Right]) {
-        velocity.x += X_ACCELERATION;
-    } else {
-        velocity.x *= 0.82;
-    }
-    if velocity.x.abs() > MAX_X_MOVE_SPEED {
-        velocity.x =
-            if velocity.x > 0.0 { 1.0 } else { -1.0 } * MAX_X_MOVE_SPEED;
-    }
-    if velocity.x.abs() < 0.1 {
-        velocity.x = 0.0;
-    }
-    // Vertical motion
-    if input.just_pressed(KeyCode::W) {
-        velocity.y = GRAVITY / 2.0;
+    for (mut velocity, anim_val) in query.iter_mut() {
+        // Ignore dead agents
+        if anim_val.state == AgentAnimState::Dead {
+            continue;
+        }
+        // Horizontal motion
+        if input.any_pressed([KeyCode::A, KeyCode::Left]) {
+            velocity.x -= X_ACCELERATION;
+        } else if input.any_pressed([KeyCode::D, KeyCode::Right]) {
+            velocity.x += X_ACCELERATION;
+        } else {
+            velocity.x *= 0.82;
+        }
+        if velocity.x.abs() > MAX_X_MOVE_SPEED {
+            velocity.x =
+                if velocity.x > 0.0 { 1.0 } else { -1.0 } * MAX_X_MOVE_SPEED;
+        }
+        if velocity.x.abs() < 0.1 {
+            velocity.x = 0.0;
+        }
+        // Vertical motion
+        if input.just_pressed(KeyCode::W) {
+            velocity.y = GRAVITY / 2.0;
+        }
     }
 }
 
 pub fn check_oob(
-    mut commands: Commands,
-    mut query: Query<(&Transform, Entity), With<Agent>>,
+    mut query: Query<
+        (
+            &Transform,
+            &mut Moveable,
+            &mut Velocity,
+            &mut AnimationVal<AgentAnimState>,
+        ),
+        With<Agent>,
+    >,
 ) {
     if query.is_empty() {
         return;
     };
-    for (transform, entity) in query.iter_mut() {
+    for (transform, mut moveable, mut vel, mut anim_val) in query.iter_mut() {
         if transform.translation.x < -WINDOW_WIDTH / 2.0
             || WINDOW_WIDTH / 2.0 <= transform.translation.x
             || transform.translation.y < -WINDOW_HEIGHT / 2.0
             || WINDOW_HEIGHT / 2.0 < transform.translation.y
         {
-            commands.entity(entity).despawn_recursive();
+            moveable.gravity_enabled = false;
+            anim_val.state = AgentAnimState::Dead;
+            vel.x = 0.0;
+            vel.y = 0.0;
         }
     }
 }
@@ -233,4 +265,5 @@ pub fn register_agent(app: &mut App) {
         .add_systems(Update, agent_anim_update)
         .add_systems(Update, check_oob);
     register_eye(app);
+    register_roll(app);
 }

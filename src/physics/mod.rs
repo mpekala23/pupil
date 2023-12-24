@@ -89,20 +89,26 @@ pub struct Velocity {
 
 /// Does this component move?
 #[derive(Component)]
-pub struct Moveable;
+pub struct Moveable {
+    pub gravity_enabled: bool,
+}
 
 pub fn physics_setup() {}
 
 pub fn physics_gravity(
     time: Res<Time>,
-    mut query: Query<&mut Velocity, With<Moveable>>,
+    mut query: Query<(&mut Velocity, &Moveable)>,
 ) {
     const SUPPOSED_SPF: f32 = 1.0 / 60.0;
     let mut adjust_mult = time.delta_seconds();
     if adjust_mult > SUPPOSED_SPF * 3.0 {
         adjust_mult = SUPPOSED_SPF * 3.0;
     }
-    for mut velocity in query.iter_mut() {
+    for (mut velocity, moveable) in query.iter_mut() {
+        if !moveable.gravity_enabled {
+            // Ignore agents where gravity is turned off
+            continue;
+        }
         velocity.y -= GRAVITY * adjust_mult;
     }
 }

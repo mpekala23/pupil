@@ -48,7 +48,6 @@ pub fn reward_do_judgement(
                 sub_trans.translation().distance(dr_trans.translation());
         }
         sub_score.reward = cum_reward;
-        println!("Subscore: {}", sub_score.reward);
     }
 }
 
